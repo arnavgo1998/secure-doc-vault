@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { extractPdfInfo } from "@/utils/pdfParser";
 
 interface Document {
   id: string;
@@ -9,13 +10,24 @@ interface Document {
   type: string;
   size: number;
   ownerId: string;
+  ownerName?: string;
   createdAt: string;
   url: string;
+  insuranceType: string | null;
+  policyNumber: string | null;
+  provider: string | null;
+  premium: string | null;
+  dueDate: string | null;
 }
 
 interface InviteCode {
   code: string;
   ownerId: string;
+}
+
+interface SharedAccess {
+  ownerId: string;
+  userId: string;
 }
 
 interface DocumentContextType {
@@ -25,6 +37,8 @@ interface DocumentContextType {
   generateInviteCode: () => Promise<string>;
   redeemInviteCode: (code: string) => Promise<void>;
   inviteCode: string | null;
+  revokeAccess: (userId: string) => Promise<void>;
+  getSharedWithUsers: () => SharedAccess[];
 }
 
 const DocumentContext = createContext<DocumentContextType | undefined>(undefined);
@@ -32,10 +46,10 @@ const DocumentContext = createContext<DocumentContextType | undefined>(undefined
 // Mock database
 let DOCUMENTS_DB: Document[] = [];
 let INVITE_CODES: InviteCode[] = [];
-let USER_INVITES: { userId: string; inviterId: string }[] = [];
+let USER_INVITES: SharedAccess[] = [];
 
 export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, getUserById } = useAuth();
   const { toast } = useToast();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [sharedDocuments, setSharedDocuments] = useState<Document[]>([]);
@@ -60,20 +74,31 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setDocuments(userDocs);
   };
 
-  const loadSharedDocuments = () => {
+  const loadSharedDocuments = async () => {
     if (!user) return;
     
     // Get all inviter IDs for this user
     const inviterIds = USER_INVITES
       .filter((invite) => invite.userId === user.id)
-      .map((invite) => invite.inviterId);
+      .map((invite) => invite.ownerId);
     
     // Get all documents from these inviters
     const shared = DOCUMENTS_DB.filter((doc) => 
       inviterIds.includes(doc.ownerId)
     );
     
-    setSharedDocuments(shared);
+    // Add owner name to shared documents
+    const sharedWithOwners = await Promise.all(
+      shared.map(async (doc) => {
+        const ownerUser = getUserById(doc.ownerId);
+        return {
+          ...doc,
+          ownerName: ownerUser ? ownerUser.name : "Unknown"
+        };
+      })
+    );
+    
+    setSharedDocuments(sharedWithOwners);
   };
 
   const loadInviteCode = () => {
@@ -93,6 +118,25 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     try {
+      // Show processing toast
+      toast({
+        title: "Processing document",
+        description: "We're extracting information from your document...",
+      });
+      
+      // Extract information from PDF if applicable
+      let documentInfo = {
+        insuranceType: null,
+        policyNumber: null,
+        provider: null,
+        premium: null,
+        dueDate: null,
+      };
+      
+      if (file.type === "application/pdf") {
+        documentInfo = await extractPdfInfo(file);
+      }
+      
       // Simulate upload delay
       await new Promise((resolve) => setTimeout(resolve, 1500));
       
@@ -105,6 +149,7 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ownerId: user.id,
         createdAt: new Date().toISOString(),
         url: URL.createObjectURL(file),
+        ...documentInfo
       };
       
       // Add to mock database
@@ -196,7 +241,7 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       // Check if already invited
       const alreadyInvited = USER_INVITES.some(
-        (inv) => inv.userId === user.id && inv.inviterId === invite.ownerId
+        (inv) => inv.userId === user.id && inv.ownerId === invite.ownerId
       );
       
       if (alreadyInvited) {
@@ -211,7 +256,7 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Add to invited users
       USER_INVITES.push({
         userId: user.id,
-        inviterId: invite.ownerId,
+        ownerId: invite.ownerId,
       });
       
       // Reload shared documents
@@ -231,6 +276,35 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const revokeAccess = async (userId: string) => {
+    if (!user) throw new Error("User not authenticated");
+    
+    try {
+      // Filter out the access relationship
+      USER_INVITES = USER_INVITES.filter(
+        (invite) => !(invite.ownerId === user.id && invite.userId === userId)
+      );
+      
+      toast({
+        title: "Access revoked",
+        description: "The user no longer has access to your documents",
+      });
+    } catch (error) {
+      toast({
+        title: "Error revoking access",
+        description: "Please try again later",
+        variant: "destructive",
+      });
+      console.error(error);
+    }
+  };
+  
+  const getSharedWithUsers = () => {
+    if (!user) return [];
+    
+    return USER_INVITES.filter((invite) => invite.ownerId === user.id);
+  };
+
   return (
     <DocumentContext.Provider
       value={{
@@ -240,6 +314,8 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         generateInviteCode,
         redeemInviteCode,
         inviteCode,
+        revokeAccess,
+        getSharedWithUsers,
       }}
     >
       {children}

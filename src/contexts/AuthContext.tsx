@@ -6,27 +6,49 @@ import { useToast } from "@/hooks/use-toast";
 interface User {
   id: string;
   email: string;
+  name: string;
+  age: number;
+  phone: string;
+  phoneVerified: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string, age: number, phone: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  verifyOTP: (phone: string, otp: string) => Promise<boolean>;
+  sendOTP: (phone: string) => Promise<void>;
+  getUserById: (id: string) => User | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // This is a mock database for our demo
-let USERS_DB: { id: string; email: string; password: string }[] = [
+let USERS_DB: { 
+  id: string; 
+  email: string; 
+  password: string;
+  name: string;
+  age: number;
+  phone: string;
+  phoneVerified: boolean;
+}[] = [
   {
     id: "user-1",
     email: "test@example.com",
     password: "password123",
+    name: "Test User",
+    age: 30,
+    phone: "1234567890",
+    phoneVerified: true,
   },
 ];
+
+// Mock OTP storage for verification
+let OTP_STORE: { [phone: string]: string } = {};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -54,7 +76,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       
       if (foundUser) {
-        const userData = { id: foundUser.id, email: foundUser.email };
+        const userData = { 
+          id: foundUser.id, 
+          email: foundUser.email,
+          name: foundUser.name,
+          age: foundUser.age,
+          phone: foundUser.phone,
+          phoneVerified: foundUser.phoneVerified,
+        };
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
         navigate("/dashboard");
@@ -81,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (email: string, password: string) => {
+  const register = async (email: string, password: string, name: string, age: number, phone: string) => {
     setLoading(true);
     try {
       // Simulate API request delay
@@ -102,11 +131,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: `user-${Date.now()}`,
         email,
         password,
+        name,
+        age,
+        phone,
+        phoneVerified: false, // Requires verification
       };
       
       USERS_DB.push(newUser);
       
-      const userData = { id: newUser.id, email: newUser.email };
+      const userData = { 
+        id: newUser.id, 
+        email: newUser.email,
+        name: newUser.name,
+        age: newUser.age,
+        phone: newUser.phone,
+        phoneVerified: newUser.phoneVerified,
+      };
+      
       setUser(userData);
       localStorage.setItem("user", JSON.stringify(userData));
       
@@ -137,6 +178,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const sendOTP = async (phone: string) => {
+    try {
+      // Generate a random 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // In a real app, we would send an SMS here
+      console.log(`[MOCK] Sending OTP ${otp} to ${phone}`);
+      
+      // Store OTP for verification
+      OTP_STORE[phone] = otp;
+      
+      toast({
+        title: "OTP sent",
+        description: `Verification code sent to ${phone}. For testing, the code is: ${otp}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error sending OTP",
+        description: "Failed to send verification code",
+        variant: "destructive",
+      });
+      console.error(error);
+    }
+  };
+
+  const verifyOTP = async (phone: string, otp: string): Promise<boolean> => {
+    // Check if OTP matches
+    if (OTP_STORE[phone] === otp) {
+      // Update user's phone verification status
+      if (user) {
+        const updatedUser = {
+          ...user,
+          phoneVerified: true,
+        };
+        
+        // Update in mock DB
+        const userIndex = USERS_DB.findIndex(u => u.id === user.id);
+        if (userIndex !== -1) {
+          USERS_DB[userIndex].phoneVerified = true;
+        }
+        
+        // Update local state
+        setUser(updatedUser);
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+      }
+      
+      toast({
+        title: "Phone verified",
+        description: "Your phone number has been verified successfully",
+      });
+      
+      // Clean up OTP
+      delete OTP_STORE[phone];
+      
+      return true;
+    } else {
+      toast({
+        title: "Verification failed",
+        description: "Invalid OTP code. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const getUserById = (id: string): User | null => {
+    const foundUser = USERS_DB.find(u => u.id === id);
+    if (!foundUser) return null;
+    
+    return {
+      id: foundUser.id,
+      email: foundUser.email,
+      name: foundUser.name,
+      age: foundUser.age,
+      phone: foundUser.phone,
+      phoneVerified: foundUser.phoneVerified,
+    };
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -146,6 +266,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         register,
         logout,
         isAuthenticated: !!user,
+        verifyOTP,
+        sendOTP,
+        getUserById,
       }}
     >
       {children}

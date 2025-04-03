@@ -43,6 +43,7 @@ const DashboardPage: React.FC = () => {
               documents={sharedDocuments}
               emptyMessage="No documents have been shared with you yet"
               title="Documents Shared With You"
+              isShared={true}
             />
             
             <div className="mt-8">
