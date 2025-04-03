@@ -1,19 +1,58 @@
 
-# Welcome to your Lovable project
+# Secure Document Vault
+
+A mobile-friendly web application that allows users to securely store, share, and manage their insurance documents.
 
 ## Project info
 
 **URL**: https://lovable.dev/projects/654de609-d840-4e89-9054-fa5182081cea
 
-## Authentication
+## Features
 
-This project uses Supabase for authentication with phone-based OTP (One-Time Password) login:
+- **Secure Authentication**: Phone-based OTP authentication for maximum security
+- **Document Upload**: Upload and manage insurance documents in PDF format
+- **Document Analysis**: Automatic extraction of key information from insurance documents
+- **Document Sharing**: Share your documents with others using invite codes
+- **Mobile Responsive**: Designed to work great on all devices
 
-1. Users enter their phone number
-2. They receive an OTP via SMS
-3. After verification, they are logged in
+## Test Credentials
 
-**Note:** For development and testing, Supabase provides "test mode" for phone authentication. No real SMS messages will be sent, and the OTP code will always be `123456` for test phone numbers. Use a test phone number format like: `+11234567890`
+For development and testing, Supabase provides "test mode" for phone authentication:
+
+- **Test Phone Number**: +11234567890 (or any other number with a + symbol)
+- **OTP Code**: 123456 (will always work in test mode)
+
+## How to Use
+
+1. **Sign Up/Login**: Register with your phone number or log in if you already have an account
+2. **Upload Documents**: Click the "Upload Document" button on your dashboard to add insurance documents
+3. **View & Edit**: View your uploaded documents and edit details if needed
+4. **Share Documents**: Share your documents with others by giving them your invite code
+5. **Access Shared Documents**: Enter someone else's invite code to access their shared documents
+
+## Technical Implementation
+
+This project is built with:
+
+- Vite + React + TypeScript
+- Tailwind CSS
+- shadcn/ui components
+- Supabase for authentication, database, and storage
+- Supabase Edge Functions for document analysis
+
+## Project Structure
+
+- **Authentication**: Phone-based OTP authentication through Supabase Auth
+- **Database**: Stores user profiles, insurance documents metadata, and sharing relationships
+- **Storage**: Securely stores the actual PDF documents
+- **Edge Functions**: Processes and extracts information from uploaded PDF documents
+
+## Database Schema
+
+- **profiles**: Stores user information
+- **insurances**: Stores insurance document metadata
+- **invite_codes**: Manages sharing capabilities
+- **shared_insurances**: Tracks sharing relationships between users
 
 ## How can I edit this code?
 
@@ -47,38 +86,6 @@ npm i
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/654de609-d840-4e89-9054-fa5182081cea) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes it is!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)

@@ -10,9 +10,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { supabase } from "@/integrations/supabase/client";
 
 const phoneSchema = z.object({
   phone: z.string().min(10, "Phone number must be at least 10 characters"),
+  fullName: z.string().min(2, "Name must be at least 2 characters").optional(),
+  email: z.string().email("Invalid email address").optional(),
+  age: z.string().refine(val => !val || !isNaN(Number(val)), {
+    message: "Age must be a number",
+  }).optional(),
 });
 
 const otpSchema = z.object({
@@ -24,12 +30,20 @@ const Auth = () => {
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [userInfo, setUserInfo] = useState<{
+    fullName?: string;
+    email?: string;
+    age?: string;
+  }>({});
   const [loading, setLoading] = useState(false);
 
   const phoneForm = useForm<z.infer<typeof phoneSchema>>({
     resolver: zodResolver(phoneSchema),
     defaultValues: {
       phone: "",
+      fullName: "",
+      email: "",
+      age: "",
     },
   });
 
@@ -44,6 +58,13 @@ const Auth = () => {
     setLoading(true);
     const formattedPhone = formatPhoneNumber(values.phone);
     setPhoneNumber(formattedPhone);
+    
+    // Save additional user info for later
+    setUserInfo({
+      fullName: values.fullName,
+      email: values.email,
+      age: values.age,
+    });
 
     try {
       const { error, success } = authMode === "signin" 
@@ -80,6 +101,19 @@ const Auth = () => {
       const { error, success } = await verifyOtp(phoneNumber, values.otp);
 
       if (success) {
+        // If this is a signup and we have additional user info, store it in the database
+        if (authMode === "signup" && (userInfo.fullName || userInfo.email || userInfo.age)) {
+          const user = (await supabase.auth.getUser()).data.user;
+          
+          if (user) {
+            await supabase.from('profiles').update({
+              full_name: userInfo.fullName,
+              email: userInfo.email,
+              age: userInfo.age ? parseInt(userInfo.age) : null,
+            }).eq('id', user.id);
+          }
+        }
+        
         toast({
           title: "Success",
           description: "You have been successfully authenticated",
@@ -128,13 +162,13 @@ const Auth = () => {
               </TabsList>
 
               <Form {...phoneForm}>
-                <form onSubmit={phoneForm.handleSubmit(handlePhoneSubmit)} className="space-y-6">
+                <form onSubmit={phoneForm.handleSubmit(handlePhoneSubmit)} className="space-y-4">
                   <FormField
                     control={phoneForm.control}
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Phone Number</FormLabel>
+                        <FormLabel>Phone Number <span className="text-red-500">*</span></FormLabel>
                         <FormControl>
                           <Input 
                             placeholder="+1234567890" 
@@ -146,6 +180,67 @@ const Auth = () => {
                       </FormItem>
                     )}
                   />
+                  
+                  {authMode === "signup" && (
+                    <>
+                      <FormField
+                        control={phoneForm.control}
+                        name="fullName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Full Name</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="John Doe" 
+                                {...field} 
+                                disabled={loading}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={phoneForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email (Optional)</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="john@example.com" 
+                                type="email"
+                                {...field} 
+                                disabled={loading}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={phoneForm.control}
+                        name="age"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Age</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="30" 
+                                type="number"
+                                {...field} 
+                                disabled={loading}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
+                  
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Sending..." : "Continue"}
                   </Button>
@@ -190,6 +285,9 @@ const Auth = () => {
               Back
             </Button>
           )}
+          <p className="text-xs text-center text-gray-500">
+            For testing, use any phone number like +11234567890 and OTP code 123456
+          </p>
         </CardFooter>
       </Card>
     </div>

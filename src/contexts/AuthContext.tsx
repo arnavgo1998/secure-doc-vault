@@ -61,8 +61,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (phone: string) => {
     try {
+      // This is the fixed code - we're using signUp with phone OTP
       const { error } = await supabase.auth.signUp({
         phone,
+        // Remove password requirement and use phone-based authentication
+        // Add user metadata through the data option
         options: {
           data: {
             phone,
