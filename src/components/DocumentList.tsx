@@ -1,12 +1,13 @@
 
 import React, { useState } from "react";
-import { File, ChevronDown, ChevronUp, X } from "lucide-react";
+import { File, ChevronDown, ChevronUp, X, Edit } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useDocuments } from "@/contexts/DocumentContext";
 import { useAuth } from "@/contexts/AuthContext";
+import DocumentEditor from "./DocumentEditor";
 
 interface Document {
   id: string;
@@ -41,6 +42,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
   const { revokeAccess, getSharedWithUsers } = useDocuments();
   const [expandedDocs, setExpandedDocs] = useState<string[]>([]);
   const [showAccessManager, setShowAccessManager] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + " B";
@@ -60,6 +62,10 @@ const DocumentList: React.FC<DocumentListProps> = ({
   
   const handleRevokeAccess = async (userId: string) => {
     await revokeAccess(userId);
+  };
+
+  const handleEditDocument = (document: Document) => {
+    setEditingDocument(document);
   };
 
   return (
@@ -124,6 +130,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
         <div className="grid grid-cols-1 gap-4">
           {documents.map(doc => {
             const isExpanded = expandedDocs.includes(doc.id);
+            const canEdit = !isShared && doc.ownerId === user?.id;
             
             return (
               <Card 
@@ -154,16 +161,30 @@ const DocumentList: React.FC<DocumentListProps> = ({
                       </div>
                     </div>
                     
-                    <Button variant="ghost" size="icon" onClick={(e) => {
-                      e.stopPropagation();
-                      toggleDocExpand(doc.id);
-                    }}>
-                      {isExpanded ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
+                    <div className="flex items-center gap-1">
+                      {canEdit && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditDocument(doc);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
                       )}
-                    </Button>
+                      <Button variant="ghost" size="icon" onClick={(e) => {
+                        e.stopPropagation();
+                        toggleDocExpand(doc.id);
+                      }}>
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   
                   {isExpanded && (
@@ -173,9 +194,9 @@ const DocumentList: React.FC<DocumentListProps> = ({
                           {doc.insuranceType && (
                             <div>
                               <p className="text-xs text-muted-foreground">Insurance Type</p>
-                              <p className="font-medium">
+                              <div className="font-medium">
                                 <Badge>{doc.insuranceType}</Badge>
-                              </p>
+                              </div>
                             </div>
                           )}
                           
@@ -231,6 +252,13 @@ const DocumentList: React.FC<DocumentListProps> = ({
           })}
         </div>
       )}
+      
+      {/* Document Editor Dialog */}
+      <DocumentEditor 
+        isOpen={!!editingDocument} 
+        onClose={() => setEditingDocument(null)} 
+        document={editingDocument} 
+      />
     </div>
   );
 };

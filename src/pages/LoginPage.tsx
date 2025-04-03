@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,17 +17,20 @@ import {
 import { Input } from "@/components/ui/input";
 import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 const LoginPage: React.FC = () => {
-  const { login, loading } = useAuth();
+  const { login, loading, isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const [authError, setAuthError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -37,13 +40,29 @@ const LoginPage: React.FC = () => {
     },
   });
 
+  // Redirect if already logged in
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard");
+    }
+  }, [isAuthenticated, navigate]);
+
   const onSubmit = async (values: FormValues) => {
     setAuthError(null);
     try {
       await login(values.email, values.password);
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+      });
     } catch (error) {
       console.error(error);
       setAuthError("Invalid email or password");
+      toast({
+        title: "Login failed",
+        description: "Please check your email and password",
+        variant: "destructive",
+      });
     }
   };
 

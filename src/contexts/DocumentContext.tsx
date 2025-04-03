@@ -39,6 +39,11 @@ interface DocumentContextType {
   inviteCode: string | null;
   revokeAccess: (userId: string) => Promise<void>;
   getSharedWithUsers: () => SharedAccess[];
+  updateDocumentDetails: (documentId: string, details: {
+    insuranceType?: string | null;
+    provider?: string | null;
+    premium?: string | null;
+  }) => Promise<void>;
 }
 
 const DocumentContext = createContext<DocumentContextType | undefined>(undefined);
@@ -107,6 +112,56 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setInviteCode(userCode?.code || null);
   };
 
+  const updateDocumentDetails = async (documentId: string, details: {
+    insuranceType?: string | null;
+    provider?: string | null;
+    premium?: string | null;
+  }) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please login to update documents",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Find document in database
+      const docIndex = DOCUMENTS_DB.findIndex((doc) => doc.id === documentId);
+      
+      if (docIndex === -1) {
+        throw new Error("Document not found");
+      }
+      
+      // Update document
+      DOCUMENTS_DB[docIndex] = {
+        ...DOCUMENTS_DB[docIndex],
+        ...details,
+      };
+      
+      // Update local state
+      setDocuments(documents.map((doc) => 
+        doc.id === documentId 
+          ? { ...doc, ...details } 
+          : doc
+      ));
+      
+      toast({
+        title: "Document updated",
+        description: "Your document details have been updated",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Update failed",
+        description: "There was an error updating your document",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   const uploadDocument = async (file: File) => {
     if (!user) {
       toast({
@@ -140,10 +195,15 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Simulate upload delay
       await new Promise((resolve) => setTimeout(resolve, 1500));
       
+      // Format document name based on insurance type
+      const baseFileName = file.name;
+      const insuranceType = documentInfo.insuranceType || "Unknown";
+      const docName = `${insuranceType} Insurance`;
+      
       // Create document object
       const newDocument: Document = {
         id: `doc-${Date.now()}`,
-        name: file.name,
+        name: docName,
         type: file.type,
         size: file.size,
         ownerId: user.id,
@@ -160,7 +220,7 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       toast({
         title: "Upload successful",
-        description: `${file.name} has been uploaded`,
+        description: `${docName} has been uploaded`,
       });
     } catch (error) {
       toast({
@@ -316,6 +376,7 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         inviteCode,
         revokeAccess,
         getSharedWithUsers,
+        updateDocumentDetails,
       }}
     >
       {children}

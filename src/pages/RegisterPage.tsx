@@ -23,6 +23,11 @@ import {
 import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const formSchema = z
   .object({
@@ -30,7 +35,18 @@ const formSchema = z
     email: z.string().email("Invalid email address"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
-    age: z.coerce.number().min(18, "You must be at least 18 years old"),
+    birthdate: z.date({
+      required_error: "Birthdate is required",
+    }).refine((date) => {
+      const today = new Date();
+      const birthDate = new Date(date);
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age >= 18;
+    }, "You must be at least 18 years old"),
     phone: z.string().min(10, "Phone number must be at least 10 digits"),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -54,7 +70,6 @@ const RegisterPage: React.FC = () => {
       email: "",
       password: "",
       confirmPassword: "",
-      age: 18,
       phone: "",
     },
   });
@@ -79,11 +94,20 @@ const RegisterPage: React.FC = () => {
     try {
       const verified = await verifyOTP(formValues.phone, otp);
       if (verified) {
+        // Calculate age from birthdate
+        const today = new Date();
+        const birthDate = new Date(formValues.birthdate);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        
         await register(
           formValues.email, 
           formValues.password, 
           formValues.name, 
-          formValues.age, 
+          age,  // Still pass age to the register function
           formValues.phone
         );
       }
@@ -141,19 +165,44 @@ const RegisterPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="age"
+                  name="birthdate"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Age</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="35" 
-                          min="18" 
-                          {...field} 
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || "")}
-                        />
-                      </FormControl>
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Date of Birth</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) => {
+                              const today = new Date();
+                              const minDate = new Date();
+                              minDate.setFullYear(today.getFullYear() - 100);
+                              return date > today || date < minDate;
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
