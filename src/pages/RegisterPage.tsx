@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { parse, isValid } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,8 +27,41 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+
+// Country codes for dropdown
+const countryCodes = [
+  { value: "+1", label: "United States (+1)" },
+  { value: "+44", label: "United Kingdom (+44)" },
+  { value: "+91", label: "India (+91)" },
+  { value: "+61", label: "Australia (+61)" },
+  { value: "+86", label: "China (+86)" },
+  { value: "+49", label: "Germany (+49)" },
+  { value: "+33", label: "France (+33)" },
+  { value: "+81", label: "Japan (+81)" },
+  { value: "+7", label: "Russia (+7)" },
+  { value: "+55", label: "Brazil (+55)" },
+  { value: "+34", label: "Spain (+34)" },
+  { value: "+39", label: "Italy (+39)" },
+  { value: "+52", label: "Mexico (+52)" },
+  { value: "+82", label: "South Korea (+82)" },
+  { value: "+31", label: "Netherlands (+31)" },
+];
 
 const formSchema = z
   .object({
@@ -47,7 +81,9 @@ const formSchema = z
       }
       return age >= 18;
     }, "You must be at least 18 years old"),
-    phone: z.string().min(10, "Phone number must be at least 10 digits"),
+    birthdateInput: z.string().optional(),
+    countryCode: z.string().default("+1"),
+    phoneNumber: z.string().min(6, "Phone number must be at least 6 digits"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -62,6 +98,7 @@ const RegisterPage: React.FC = () => {
   const [otpDialogOpen, setOtpDialogOpen] = useState(false);
   const [otp, setOtp] = useState("");
   const [formValues, setFormValues] = useState<FormValues | null>(null);
+  const [isCountryCodeOpen, setIsCountryCodeOpen] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -70,17 +107,51 @@ const RegisterPage: React.FC = () => {
       email: "",
       password: "",
       confirmPassword: "",
-      phone: "",
+      countryCode: "+1",
+      phoneNumber: "",
+      birthdateInput: "",
     },
   });
+
+  // Function to parse date from different formats
+  const parseDate = (dateString: string): Date | null => {
+    // Try DD/MM/YYYY format
+    let date = parse(dateString, "dd/MM/yyyy", new Date());
+    if (isValid(date)) return date;
+    
+    // Try MM/DD/YYYY format
+    date = parse(dateString, "MM/dd/yyyy", new Date());
+    if (isValid(date)) return date;
+    
+    // Try YYYY-MM-DD format
+    date = parse(dateString, "yyyy-MM-dd", new Date());
+    if (isValid(date)) return date;
+    
+    return null;
+  };
+
+  // Handle manual date input
+  const handleDateInput = (e: React.ChangeEvent<HTMLInputElement>, onChange: (date: Date) => void) => {
+    const value = e.target.value;
+    form.setValue("birthdateInput", value);
+    
+    if (value) {
+      const parsedDate = parseDate(value);
+      if (parsedDate) {
+        onChange(parsedDate);
+      }
+    }
+  };
 
   const onSubmit = async (values: FormValues) => {
     setAuthError(null);
     setFormValues(values);
     
     try {
+      // Combine country code and phone number
+      const fullPhoneNumber = values.countryCode + values.phoneNumber;
       // Send OTP first
-      await sendOTP(values.phone);
+      await sendOTP(fullPhoneNumber);
       setOtpDialogOpen(true);
     } catch (error) {
       console.error(error);
@@ -92,7 +163,9 @@ const RegisterPage: React.FC = () => {
     if (!formValues) return;
     
     try {
-      const verified = await verifyOTP(formValues.phone, otp);
+      // Combine country code and phone number
+      const fullPhoneNumber = formValues.countryCode + formValues.phoneNumber;
+      const verified = await verifyOTP(fullPhoneNumber, otp);
       if (verified) {
         // Calculate age from birthdate
         const today = new Date();
@@ -107,8 +180,8 @@ const RegisterPage: React.FC = () => {
           formValues.email, 
           formValues.password, 
           formValues.name, 
-          age,  // Still pass age to the register function
-          formValues.phone
+          age,
+          fullPhoneNumber
         );
       }
     } catch (error) {
@@ -162,65 +235,134 @@ const RegisterPage: React.FC = () => {
                 )}
               />
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <FormField
                   control={form.control}
                   name="birthdate"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Date of Birth</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) => {
-                              const today = new Date();
-                              const minDate = new Date();
-                              minDate.setFullYear(today.getFullYear() - 100);
-                              return date > today || date < minDate;
-                            }}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
+                      <div className="flex flex-col space-y-2">
+                        <Input 
+                          placeholder="DD/MM/YYYY" 
+                          name="birthdateInput"
+                          value={form.watch("birthdateInput")}
+                          onChange={(e) => handleDateInput(e, field.onChange)}
+                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP")
+                                ) : (
+                                  <span>Or pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-popover" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={(date) => {
+                                field.onChange(date);
+                                if (date) {
+                                  form.setValue("birthdateInput", format(date, "dd/MM/yyyy"));
+                                }
+                              }}
+                              disabled={(date) => {
+                                const today = new Date();
+                                const minDate = new Date();
+                                minDate.setFullYear(today.getFullYear() - 100);
+                                return date > today || date < minDate;
+                              }}
+                              initialFocus
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="1234567890" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="flex flex-col space-y-2">
+                  <FormLabel>Phone Number</FormLabel>
+                  <div className="flex space-x-2">
+                    <FormField
+                      control={form.control}
+                      name="countryCode"
+                      render={({ field }) => (
+                        <FormItem className="flex-shrink-0 w-[120px]">
+                          <Popover open={isCountryCodeOpen} onOpenChange={setIsCountryCodeOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={isCountryCodeOpen}
+                                  className="justify-between"
+                                >
+                                  {field.value}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="p-0 bg-popover w-[200px]">
+                              <Command>
+                                <CommandInput placeholder="Search country code..." />
+                                <CommandEmpty>No country code found.</CommandEmpty>
+                                <CommandGroup className="max-h-[300px] overflow-y-auto">
+                                  {countryCodes.map((code) => (
+                                    <CommandItem
+                                      key={code.value}
+                                      value={code.label}
+                                      onSelect={() => {
+                                        field.onChange(code.value);
+                                        setIsCountryCodeOpen(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          field.value === code.value ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {code.label}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="phoneNumber"
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <Input placeholder="1234567890" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
               </div>
               
               <FormField
