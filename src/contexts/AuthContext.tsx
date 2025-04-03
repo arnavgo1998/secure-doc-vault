@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -71,6 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Simulate API request delay
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
+      console.log("Attempting login with:", email);
+      console.log("Available users:", USERS_DB);
+      
       const foundUser = USERS_DB.find(
         (u) => u.email === email && u.password === password
       );
@@ -87,24 +89,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
         navigate("/dashboard");
-        toast({
-          title: "Login successful",
-          description: "Welcome back!",
-        });
+        return Promise.resolve();
       } else {
-        toast({
-          title: "Login failed",
-          description: "Invalid email or password",
-          variant: "destructive",
-        });
+        // Throw an error to be caught by the login page
+        throw new Error("Invalid email or password");
       }
     } catch (error) {
-      toast({
-        title: "Login error",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
-      console.error(error);
+      console.error("Login error:", error);
+      // Re-throw the error so it can be caught by the login page
+      throw error;
     } finally {
       setLoading(false);
     }

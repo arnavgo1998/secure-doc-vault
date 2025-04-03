@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -50,13 +52,15 @@ const LoginPage: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     setAuthError(null);
     try {
+      console.log("Submitting login form with:", values.email);
       await login(values.email, values.password);
       toast({
         title: "Login successful",
         description: "Welcome back!",
       });
+      // No need to navigate here, AuthContext will handle it
     } catch (error) {
-      console.error(error);
+      console.error("Login form error:", error);
       setAuthError("Invalid email or password");
       toast({
         title: "Login failed",
@@ -78,6 +82,14 @@ const LoginPage: React.FC = () => {
               Enter your email and password to access your documents
             </p>
           </div>
+
+          {authError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{authError}</AlertDescription>
+            </Alert>
+          )}
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -108,10 +120,6 @@ const LoginPage: React.FC = () => {
                   </FormItem>
                 )}
               />
-
-              {authError && (
-                <div className="text-destructive text-sm">{authError}</div>
-              )}
 
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Logging in..." : "Login"}
