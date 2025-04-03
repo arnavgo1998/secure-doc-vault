@@ -1,8 +1,19 @@
+
 # Welcome to your Lovable project
 
 ## Project info
 
 **URL**: https://lovable.dev/projects/654de609-d840-4e89-9054-fa5182081cea
+
+## Authentication
+
+This project uses Supabase for authentication with phone-based OTP (One-Time Password) login:
+
+1. Users enter their phone number
+2. They receive an OTP via SMS
+3. After verification, they are logged in
+
+**Note:** For development and testing, Supabase provides "test mode" for phone authentication. No real SMS messages will be sent, and the OTP code will always be `123456` for test phone numbers. Use a test phone number format like: `+11234567890`
 
 ## How can I edit this code?
 
