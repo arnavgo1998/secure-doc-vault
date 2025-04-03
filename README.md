@@ -1,8 +1,16 @@
+
 # Welcome to your Lovable project
 
 ## Project info
 
 **URL**: https://lovable.dev/projects/654de609-d840-4e89-9054-fa5182081cea
+
+## Test User Credentials
+
+For testing purposes, you can use the following credentials:
+
+- **Phone Number**: +11234567890
+- **Verification Code**: For any OTP verification, a code will be shown in the toast notification for testing purposes
 
 ## How can I edit this code?
 

@@ -30,13 +30,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -66,9 +59,7 @@ const countryCodes = [
 const formSchema = z
   .object({
     name: z.string().min(2, "Name must be at least 2 characters"),
-    email: z.string().email("Invalid email address"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    confirmPassword: z.string(),
+    email: z.string().email("Invalid email address").optional(),
     birthdate: z.date({
       required_error: "Birthdate is required",
     }).refine((date) => {
@@ -84,10 +75,6 @@ const formSchema = z
     birthdateInput: z.string().optional(),
     countryCode: z.string().default("+1"),
     phoneNumber: z.string().min(6, "Phone number must be at least 6 digits"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
   });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -105,8 +92,6 @@ const RegisterPage: React.FC = () => {
     defaultValues: {
       name: "",
       email: "",
-      password: "",
-      confirmPassword: "",
       countryCode: "+1",
       phoneNumber: "",
       birthdateInput: "",
@@ -167,21 +152,11 @@ const RegisterPage: React.FC = () => {
       const fullPhoneNumber = formValues.countryCode + formValues.phoneNumber;
       const verified = await verifyOTP(fullPhoneNumber, otp);
       if (verified) {
-        // Calculate age from birthdate
-        const today = new Date();
-        const birthDate = new Date(formValues.birthdate);
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-          age--;
-        }
-        
         await register(
-          formValues.email, 
-          formValues.password, 
+          fullPhoneNumber, 
           formValues.name, 
-          age,
-          fullPhoneNumber
+          formValues.birthdate,
+          formValues.email
         );
       }
     } catch (error) {
@@ -226,7 +201,7 @@ const RegisterPage: React.FC = () => {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Email (optional)</FormLabel>
                     <FormControl>
                       <Input placeholder="email@example.com" {...field} />
                     </FormControl>
@@ -364,34 +339,6 @@ const RegisterPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="********" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="********" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               {authError && (
                 <div className="text-destructive text-sm">{authError}</div>

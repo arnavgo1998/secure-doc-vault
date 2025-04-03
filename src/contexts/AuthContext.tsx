@@ -1,12 +1,13 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 interface User {
   id: string;
-  email: string;
+  email?: string;
   name: string;
-  age: number;
+  birthdate: Date;
   phone: string;
   phoneVerified: boolean;
 }
@@ -14,8 +15,8 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string, age: number, phone: string) => Promise<void>;
+  loginWithPhone: (phone: string, rememberMe: boolean) => Promise<void>;
+  register: (phone: string, name: string, birthdate: Date, email?: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
   verifyOTP: (phone: string, otp: string) => Promise<boolean>;
@@ -28,20 +29,18 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // This is a mock database for our demo
 let USERS_DB: { 
   id: string; 
-  email: string; 
-  password: string;
+  email?: string; 
   name: string;
-  age: number;
+  birthdate: Date;
   phone: string;
   phoneVerified: boolean;
 }[] = [
   {
     id: "user-1",
     email: "test@example.com",
-    password: "password123",
     name: "Test User",
-    age: 30,
-    phone: "1234567890",
+    birthdate: new Date("1990-01-01"),
+    phone: "+11234567890",
     phoneVerified: true,
   },
 ];
@@ -59,62 +58,87 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        // Convert birthdate string back to Date object
+        if (parsedUser.birthdate) {
+          parsedUser.birthdate = new Date(parsedUser.birthdate);
+        }
+        setUser(parsedUser);
+      } catch (error) {
+        console.error("Error parsing stored user:", error);
+        localStorage.removeItem("user");
+      }
     }
     setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const loginWithPhone = async (phone: string, rememberMe: boolean) => {
     setLoading(true);
     try {
       // Simulate API request delay
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      console.log("Attempting login with:", email);
+      console.log("Attempting login with phone:", phone);
       console.log("Available users:", USERS_DB);
       
-      const foundUser = USERS_DB.find(
-        (u) => u.email === email && u.password === password
-      );
+      const foundUser = USERS_DB.find(u => u.phone === phone && u.phoneVerified);
       
       if (foundUser) {
         const userData = { 
           id: foundUser.id, 
           email: foundUser.email,
           name: foundUser.name,
-          age: foundUser.age,
+          birthdate: foundUser.birthdate,
           phone: foundUser.phone,
           phoneVerified: foundUser.phoneVerified,
         };
+        
         setUser(userData);
-        localStorage.setItem("user", JSON.stringify(userData));
+        
+        if (rememberMe) {
+          // Serialize Date object to string before storing
+          const userDataToStore = {
+            ...userData,
+            birthdate: userData.birthdate.toISOString(),
+          };
+          localStorage.setItem("user", JSON.stringify(userDataToStore));
+        } else {
+          // For session-only storage, we could use sessionStorage instead
+          // For this example, we'll just use localStorage but clear on logout
+          const userDataToStore = {
+            ...userData,
+            birthdate: userData.birthdate.toISOString(),
+            sessionOnly: true, // Flag to identify session-only storage
+          };
+          localStorage.setItem("user", JSON.stringify(userDataToStore));
+        }
+        
         navigate("/dashboard");
         return Promise.resolve();
       } else {
-        // Throw an error to be caught by the login page
-        throw new Error("Invalid email or password");
+        throw new Error("Invalid phone number or not verified");
       }
     } catch (error) {
       console.error("Login error:", error);
-      // Re-throw the error so it can be caught by the login page
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const register = async (email: string, password: string, name: string, age: number, phone: string) => {
+  const register = async (phone: string, name: string, birthdate: Date, email?: string) => {
     setLoading(true);
     try {
       // Simulate API request delay
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      const existingUser = USERS_DB.find((u) => u.email === email);
+      const existingUser = USERS_DB.find((u) => u.phone === phone);
       
       if (existingUser) {
         toast({
           title: "Registration failed",
-          description: "Email already in use",
+          description: "Phone number already in use",
           variant: "destructive",
         });
         return;
@@ -122,12 +146,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const newUser = {
         id: `user-${Date.now()}`,
-        email,
-        password,
+        email, // Optional
         name,
-        age,
+        birthdate,
         phone,
-        phoneVerified: false, // Requires verification
+        phoneVerified: true, // Set to true since we verified during registration
       };
       
       USERS_DB.push(newUser);
@@ -136,13 +159,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: newUser.id, 
         email: newUser.email,
         name: newUser.name,
-        age: newUser.age,
+        birthdate: newUser.birthdate,
         phone: newUser.phone,
         phoneVerified: newUser.phoneVerified,
       };
       
       setUser(userData);
-      localStorage.setItem("user", JSON.stringify(userData));
+      
+      // Serialize Date object to string before storing
+      const userDataToStore = {
+        ...userData,
+        birthdate: userData.birthdate.toISOString(),
+      };
+      localStorage.setItem("user", JSON.stringify(userDataToStore));
       
       navigate("/dashboard");
       toast({
@@ -193,13 +222,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         variant: "destructive",
       });
       console.error(error);
+      throw error;
     }
   };
 
   const verifyOTP = async (phone: string, otp: string): Promise<boolean> => {
     // Check if OTP matches
     if (OTP_STORE[phone] === otp) {
-      // Update user's phone verification status
+      // Update user's phone verification status if they're already in the system
       if (user) {
         const updatedUser = {
           ...user,
@@ -214,7 +244,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Update local state
         setUser(updatedUser);
-        localStorage.setItem("user", JSON.stringify(updatedUser));
+        
+        // Serialize Date object to string before storing
+        const userDataToStore = {
+          ...updatedUser,
+          birthdate: updatedUser.birthdate.toISOString(),
+        };
+        localStorage.setItem("user", JSON.stringify(userDataToStore));
       }
       
       toast({
@@ -244,7 +280,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: foundUser.id,
       email: foundUser.email,
       name: foundUser.name,
-      age: foundUser.age,
+      birthdate: foundUser.birthdate,
       phone: foundUser.phone,
       phoneVerified: foundUser.phoneVerified,
     };
@@ -255,7 +291,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         loading,
-        login,
+        loginWithPhone,
         register,
         logout,
         isAuthenticated: !!user,
